@@ -1,21 +1,28 @@
+# Required libraries
 library(tidyverse)
-library(lubridate)
 
-# han = read.csv("data/han.csv", stringsAsFactors = F) %>%
-#   mutate(Location = "Hancock",
-#          Date = as.Date(TIMESTAMP),
-#          Time = ymd_hm(TIMESTAMP, tz = "US/Central")) %>%
-#   filter(year(Date) == 2018) %>%
-#   mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1,
-#                           T ~ 0))
-# str(han)
+# Function definitions ----
 
-loadFile = function(fn, loc) {
-  read.csv(fn, stringsAsFactors = F) %>%
+loadCSV = function(file, loc) {
+  # read cleaned csv
+  read.csv(file, stringsAsFactors = F) %>%
     mutate(Location = loc,
-           Date = as.Date(TIMESTAMP),
-           Time = ymd_hm(TIMESTAMP, tz = "US/Central")) %>%
+           Date = as.Date(TIMESTAMP)) %>%
     mutate(Year = year(Date),
+      HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
+}
+
+loadDat = function(file, loc) {
+  # parse file
+  headers = read.csv(file, skip = 1, header = F, nrows = 1, as.is = T)
+  df = read.csv(file, skip = 4, header = F)
+  colnames(df) = headers
+  
+  # add some columns
+  df %>%
+    mutate(Location = loc,
+      Date = as.Date(TIMESTAMP),
+      Year = year(as.Date(TIMESTAMP)),
       HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
 }
 
@@ -92,12 +99,15 @@ pday = function(tminF, tmaxF) {
   Fpday = with(tm, (1 / 24) * ((5 * t1) + (8 * t2) + (8 * t3) + (3 * t4)))
   
   # return integer pdays
-  return(as.integer(Fpday))
+  return(round(Fpday, 2))
 }
 
+# convert hourly readings to daily summaries
 makeDaily = function(df) {
+  require(tidyverse)
+  # main daily summary
   left = df %>%
-    group_by(Location, Date) %>%
+    group_by(Year, Location, Date) %>%
     summarise(
       TminC = min(Tair_C_Min),
       TmaxC = max(Tair_C_Max),
@@ -110,50 +120,62 @@ makeDaily = function(df) {
       TmaxF = ctof(TmaxC),
       tavgF = ctof(TavgC)
     )
+  
+  # average temps from high RH hours
   right = df %>%
     filter(HiRH == 1) %>%
     group_by(Location, Date) %>%
     summarise(TavgC.HiRH = mean(Tair_C_Avg))
+  
+  # join and return data frame
   left_join(left, right) %>%
+    ungroup() %>%
     mutate(DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH)) %>%
-    mutate(DSVcum = cumsum(DSV)) %>%
     mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
+    group_by(Year) %>%
+    mutate(DSVcum = cumsum(DSV)) %>%
     mutate(Pdaycum = cumsum(Pday))
 }
 
-# han_daily =
-#   left_join(
-#     han %>%
-#       group_by(Location, Date) %>%
-#       summarise(TminC = min(Tair_C_Min),
-#                 TmaxC = max(Tair_C_Max),
-#                 TavgC = mean(Tair_C_Avg),
-#                 PrecipIn = sum(Rain_in_Tot),
-#                 HrsHiRH = sum(HiRH)) %>%
-#       mutate(TminF = ctof(TminC),
-#              TmaxF = ctof(TmaxC),
-#              tavgF = ctof(TavgC)),
-#     han %>%
-#       filter(HiRH == 1) %>%
-#       group_by(Location, Date) %>%
-#       summarise(TavgC.HiRH = mean(Tair_C_Avg))
-#   ) %>%
-#   mutate(DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH)) %>%
-#   mutate(DSVcum = cumsum(DSV)) %>%
-#   mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
-#   mutate(Pdaycum = cumsum(Pday))
-# view(han_daily)
 
+# Process 2018 csvs ----
 
-# Run computations ----
-
-han = makeDaily(loadFile("data/han.csv", "Hancock") %>% filter(Year == 2018))
+han = makeDaily(loadCSV("data/han.csv", "Hancock") %>% filter(Year == 2018))
 write.csv(han, "han2018.csv")
 
-gma = makeDaily(loadFile("data/gma.csv", "GrandMarsh") %>% filter(Year == 2018))
+gma = makeDaily(loadCSV("data/gma.csv", "GrandMarsh") %>% filter(Year == 2018))
 write.csv(gma, "gma2018.csv")
 
-plo = makeDaily(loadFile("data/plo.csv", "Plover") %>% filter(Year == 2018))
+plo = makeDaily(loadCSV("data/plo.csv", "Plover") %>% filter(Year == 2018))
 write.csv(plo, "plo2018.csv")
 
+
+
+# generate datasets ----
+
+han = 
+  loadDat("data/loggers/Hancock CR1000_Hr1.dat", "Hancock") %>%
+  makeDaily()
+
+han %>%
+  filter(Year == 2018) %>%
+  write.csv("han18.csv")
+
+
+gma = 
+  loadDat("data/loggers/Grand Marsh CR1000_Hr1.dat", "Grand Marsh") %>%
+  makeDaily()
+
+gma %>%
+  filter(Year == 2018) %>%
+  write.csv("gma18.csv")
+
+
+plo = 
+  loadDat("data/loggers/Plover CR1000_Hr1.dat", "Plover") %>%
+  makeDaily()
+
+plo %>%
+  filter(Year == 2018) %>%
+  write.csv("plo18.csv")
 
