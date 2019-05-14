@@ -1,5 +1,6 @@
 # Required libraries
 library(tidyverse)
+library(googlesheets)
 
 # Function definitions ----
 
@@ -20,10 +21,10 @@ loadDat = function(file, loc) {
   
   # add some columns
   df %>%
-    mutate(Location = loc,
-      Date = as.Date(TIMESTAMP),
-      Year = year(as.Date(TIMESTAMP)),
-      HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
+    mutate(Location = loc) %>%
+    mutate(Date = as.Date(TIMESTAMP)) %>%
+    mutate(Year = as.numeric(format(Date, "%Y"))) %>%
+    mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
 }
 
 ctof = function(c) {
@@ -128,54 +129,58 @@ makeDaily = function(df) {
     summarise(TavgC.HiRH = mean(Tair_C_Avg))
   
   # join and return data frame
-  left_join(left, right) %>%
+  joined = left_join(left, right) %>%
     ungroup() %>%
     mutate(DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH)) %>%
     mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
     group_by(Year) %>%
     mutate(DSVcum = cumsum(DSV)) %>%
-    mutate(Pdaycum = cumsum(Pday))
+    mutate(Pdaycum = cumsum(Pday)) %>%
+    ungroup()
+  
+  # replace NA with zero
+  joined[is.na(joined)] = 0
+  
+  return(joined)
 }
 
 
 # Process 2018 csvs ----
 
 han = makeDaily(loadCSV("data/han.csv", "Hancock") %>% filter(Year == 2018))
-write.csv(han, "han2018.csv")
+write.csv(han, "han18.csv")
 
 gma = makeDaily(loadCSV("data/gma.csv", "GrandMarsh") %>% filter(Year == 2018))
-write.csv(gma, "gma2018.csv")
+write.csv(gma, "gma18.csv")
 
 plo = makeDaily(loadCSV("data/plo.csv", "Plover") %>% filter(Year == 2018))
-write.csv(plo, "plo2018.csv")
+write.csv(plo, "plo18.csv")
+
 
 
 
 # generate datasets ----
 
-han = 
-  loadDat("data/loggers/Hancock CR1000_Hr1.dat", "Hancock") %>%
+han =
+  loadDat("data/Hancock CR1000_Hr1.dat", "Hancock") %>%
   makeDaily()
+write.csv(han, "han19.csv")
 
-han %>%
-  filter(Year == 2018) %>%
-  write.csv("han18.csv")
-
-
-gma = 
-  loadDat("data/loggers/Grand Marsh CR1000_Hr1.dat", "Grand Marsh") %>%
+gma =
+  loadDat("data/Grand Marsh CR1000_Hr1.dat", "GrandMarsh") %>%
   makeDaily()
+gma %>% write.csv("gma19.csv")
 
-gma %>%
-  filter(Year == 2018) %>%
-  write.csv("gma18.csv")
-
-
-plo = 
-  loadDat("data/loggers/Plover CR1000_Hr1.dat", "Plover") %>%
+plo =
+  loadDat("data/Plover CR1000_Hr1.dat", "Plover") %>%
   makeDaily()
+plo %>% write.csv("plo19.csv")
 
-plo %>%
-  filter(Year == 2018) %>%
-  write.csv("plo18.csv")
 
+# upload to google sheets ----
+gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
+
+# google test
+gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
+gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
+gs_edit_cells(ss = gs, ws = "plo", input = plo, anchor = "A1", byrow = T)
