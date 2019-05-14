@@ -180,7 +180,7 @@ plo %>% write.csv("plo19.csv")
 # upload to google sheets ----
 gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
 
-# google test
 gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "plo", input = plo, anchor = "A1", byrow = T)
+#gs_edit_cells(ss = gs, ws = "ant", input = ant, anchor = "A1", byrow = T)
