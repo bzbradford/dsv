@@ -147,32 +147,32 @@ makeDaily = function(df) {
 
 # Process 2018 csvs ----
 
-han = makeDaily(loadCSV("data/han.csv", "Hancock") %>% filter(Year == 2018))
-write.csv(han, "han18.csv")
-
-gma = makeDaily(loadCSV("data/gma.csv", "GrandMarsh") %>% filter(Year == 2018))
-write.csv(gma, "gma18.csv")
-
-plo = makeDaily(loadCSV("data/plo.csv", "Plover") %>% filter(Year == 2018))
-write.csv(plo, "plo18.csv")
-
+# han = makeDaily(loadCSV("data/han.csv", "Hancock") %>% filter(Year == 2018))
+# write.csv(han, "han18.csv")
+# 
+# gma = makeDaily(loadCSV("data/gma.csv", "GrandMarsh") %>% filter(Year == 2018))
+# write.csv(gma, "gma18.csv")
+# 
+# plo = makeDaily(loadCSV("data/plo.csv", "Plover") %>% filter(Year == 2018))
+# write.csv(plo, "plo18.csv")
+# 
 
 
 
 # generate datasets ----
 
 han =
-  loadDat("data/Hancock CR1000_Hr1.dat", "Hancock") %>%
+  loadDat("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "Hancock") %>%
   makeDaily()
 write.csv(han, "han19.csv")
 
 gma =
-  loadDat("data/Grand Marsh CR1000_Hr1.dat", "GrandMarsh") %>%
+  loadDat("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "GrandMarsh") %>%
   makeDaily()
 gma %>% write.csv("gma19.csv")
 
 plo =
-  loadDat("data/Plover CR1000_Hr1.dat", "Plover") %>%
+  loadDat("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "Plover") %>%
   makeDaily()
 plo %>% write.csv("plo19.csv")
 
