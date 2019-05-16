@@ -1,18 +1,10 @@
-# Required libraries
-library(tidyverse)
-library(googlesheets)
+# Process CR1000 data logger outputs and generate DSV and PDays
+# Developed by Ben Bradford, UW Madison, 2019 (bbradford@wisc.edu)
+
 
 # Function definitions ----
 
-loadCSV = function(file, loc) {
-  # read cleaned csv
-  read.csv(file, stringsAsFactors = F) %>%
-    mutate(Location = loc,
-           Date = as.Date(TIMESTAMP)) %>%
-    mutate(Year = year(Date),
-      HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
-}
-
+# load and parse data files from loggers
 loadDat = function(file, loc) {
   # parse file
   headers = read.csv(file, skip = 1, header = F, nrows = 1, as.is = T)
@@ -27,17 +19,12 @@ loadDat = function(file, loc) {
     mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
 }
 
-ctof = function(c) {
-  (c * 9/5) + 32
-}
-
 # generate dsv from leaf wetness hours and avg temp during high RH hours
 dsv = function(tavgC, lw) {
   # return 0 if arguments are NA
   if (is.na(tavgC) | is.na(lw)) {
     return(0)
   }
-  
   # return dsvs based on temp and leaf wetness
   if (between(tavgC, 13, 18)) {
     return(case_when(
@@ -106,37 +93,45 @@ pday = function(tminF, tmaxF) {
 # convert hourly readings to daily summaries
 makeDaily = function(df) {
   require(tidyverse)
+  
   # main daily summary
-  left = df %>%
+  Daily = df %>%
     group_by(Year, Location, Date) %>%
+    mutate(
+      TminF = (Tair_C_Min * 9 / 5) + 32,
+      TmaxF = (Tair_C_Max * 9 / 5) + 32,
+      TavgF = (Tair_C_Avg * 9 / 5) + 32
+    ) %>%
     summarise(
       TminC = min(Tair_C_Min),
       TmaxC = max(Tair_C_Max),
       TavgC = mean(Tair_C_Avg),
-      PrecipIn = sum(Rain_in_Tot),
-      HrsHiRH = sum(HiRH)
-    ) %>%
-    mutate(
-      TminF = ctof(TminC),
-      TmaxF = ctof(TmaxC),
-      tavgF = ctof(TavgC)
+      TminF = min(TminF),
+      TmaxF = max(TmaxF),
+      TavgF = mean(TavgF),
+      MinRH = min(AvgHrRH),
+      MaxRH = max(AvgHrRH),
+      MeanRH = mean(AvgHrRH),
+      HrsHiRH = sum(HiRH),
+      PrecipIn = sum(Rain_in_Tot)
     )
   
   # average temps from high RH hours
-  right = df %>%
+  HiRH = df %>%
     filter(HiRH == 1) %>%
-    group_by(Location, Date) %>%
+    group_by(Date) %>%
     summarise(TavgC.HiRH = mean(Tair_C_Avg))
   
-  # join and return data frame
-  joined = left_join(left, right) %>%
-    ungroup() %>%
-    mutate(DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH)) %>%
-    mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
+  joined = left_join(Daily, HiRH) %>%
     group_by(Year) %>%
+    mutate(PrecipCumIn = cumsum(PrecipIn)) %>%
+    mutate(DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH)) %>%
     mutate(DSVcum = cumsum(DSV)) %>%
+    mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
     mutate(Pdaycum = cumsum(Pday)) %>%
-    ungroup()
+    select(-"TavgC.HiRH") %>%
+    ungroup() %>%
+    mutate_if(is.numeric, round, 2)
   
   # replace NA with zero
   joined[is.na(joined)] = 0
@@ -145,40 +140,37 @@ makeDaily = function(df) {
 }
 
 
-# Process 2018 csvs ----
+# Run this section ----
 
-# han = makeDaily(loadCSV("data/han.csv", "Hancock") %>% filter(Year == 2018))
-# write.csv(han, "han18.csv")
-# 
-# gma = makeDaily(loadCSV("data/gma.csv", "GrandMarsh") %>% filter(Year == 2018))
-# write.csv(gma, "gma18.csv")
-# 
-# plo = makeDaily(loadCSV("data/plo.csv", "Plover") %>% filter(Year == 2018))
-# write.csv(plo, "plo18.csv")
-# 
-
-
-
-# generate datasets ----
+require(tidyverse)
 
 han =
   loadDat("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "Hancock") %>%
+  filter(Date >= "2019-05-01") %>%
   makeDaily()
 write.csv(han, "han19.csv")
 
 gma =
   loadDat("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "GrandMarsh") %>%
+  filter(Date >= "2019-05-01") %>%
   makeDaily()
-gma %>% write.csv("gma19.csv")
+write.csv(gma, "gma19.csv")
 
 plo =
   loadDat("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "Plover") %>%
+  filter(Date >= "2019-05-01") %>%
   makeDaily()
-plo %>% write.csv("plo19.csv")
+write.csv(plo, "plo19.csv")
 
+# ant =
+#   loadDat("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "Antigo") %>%
+#   filter(Date >= "2019-05-01") %>%
+#   makeDaily()
+# write.csv(ant, "ant19.csv")
 
-# upload to google sheets ----
-gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
+# upload to google sheets
+require(googlesheets)
+#gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
 
 gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
