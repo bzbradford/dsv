@@ -26,14 +26,14 @@ dsv = function(tavgC, lw) {
     return(0)
   }
   # return dsvs based on temp and leaf wetness
-  if (between(tavgC, 13, 18)) {
+  if (tavgC > 13 & tavgC < 18) {
     return(case_when(
       lw <=  6 ~ 0,
       lw <= 15 ~ 1,
       lw <= 20 ~ 2,
       T ~ 3))
   }
-  if (between(tavgC, 18, 21)) {
+  if (tavgC >= 18 & tavgC < 21) {
     return(case_when(
       lw <=  3 ~ 0,
       lw <=  8 ~ 1,
@@ -41,7 +41,7 @@ dsv = function(tavgC, lw) {
       lw <= 22 ~ 3,
       T ~ 4))
   }
-  if (between(tavgC, 21, 26)) {
+  if (tavgC >= 21 & tavgC < 26) {
     return(case_when(
       lw <=  2 ~ 0,
       lw <=  5 ~ 1,
@@ -49,7 +49,7 @@ dsv = function(tavgC, lw) {
       lw <= 20 ~ 3,
       T ~ 4))
   }
-  if (between(tavgC, 26, 29)) {
+  if (tavgC >= 26 & tavgC < 29) {
     return(case_when(
       lw <=  3 ~ 0,
       lw <=  8 ~ 1,
@@ -94,8 +94,14 @@ pday = function(tminF, tmaxF) {
 makeDaily = function(df) {
   require(tidyverse)
   
+  # average temps from high RH hours
+  HiRH = df %>%
+    filter(HiRH == 1) %>%
+    group_by(Date) %>%
+    summarise(TavgC.HiRH = mean(Tair_C_Avg))
+  
   # main daily summary
-  Daily = df %>%
+  daily = df %>%
     group_by(Year, Location, Date) %>%
     mutate(
       TminF = (Tair_C_Min * 9 / 5) + 32,
@@ -114,24 +120,20 @@ makeDaily = function(df) {
       MeanRH = mean(AvgHrRH),
       HrsHiRH = sum(HiRH),
       PrecipIn = sum(Rain_in_Tot)
-    )
-  
-  # average temps from high RH hours
-  HiRH = df %>%
-    filter(HiRH == 1) %>%
-    group_by(Date) %>%
-    summarise(TavgC.HiRH = mean(Tair_C_Avg))
-  
-  joined = left_join(Daily, HiRH) %>%
+    ) %>%
     group_by(Year) %>%
-    mutate(PrecipCumIn = cumsum(PrecipIn)) %>%
+    mutate(PrecipCumIn = cumsum(PrecipIn))
+  
+  joined = daily %>%
+    left_join(HiRH) %>%
+    group_by(Year) %>%
     mutate(DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH)) %>%
     mutate(DSVcum = cumsum(DSV)) %>%
     mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
     mutate(Pdaycum = cumsum(Pday)) %>%
-    select(-"TavgC.HiRH") %>%
     ungroup() %>%
-    mutate_if(is.numeric, round, 2)
+    mutate_if(is.numeric, round, 2) %>%
+    select(-"TavgC.HiRH")
   
   # replace NA with zero
   joined[is.na(joined)] = 0
@@ -144,23 +146,20 @@ makeDaily = function(df) {
 
 require(tidyverse)
 
-han =
+han.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "Hancock") %>%
-  filter(Date >= "2019-05-01") %>%
-  makeDaily()
-write.csv(han, "han19.csv")
+  filter(Date >= "2019-05-01")
+han = makeDaily(han.hourly)
 
-gma =
+gma.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "GrandMarsh") %>%
-  filter(Date >= "2019-05-01") %>%
-  makeDaily()
-write.csv(gma, "gma19.csv")
+  filter(Date >= "2019-05-01")
+gma = makeDaily(gma.hourly)
 
-plo =
+plo.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "Plover") %>%
-  filter(Date >= "2019-05-01") %>%
-  makeDaily()
-write.csv(plo, "plo19.csv")
+  filter(Date >= "2019-05-01")
+plo = makeDaily(plo.hourly)
 
 # ant =
 #   loadDat("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "Antigo") %>%
@@ -168,7 +167,19 @@ write.csv(plo, "plo19.csv")
 #   makeDaily()
 # write.csv(ant, "ant19.csv")
 
+
+# write to csv
+write.csv(han.hourly, "han19-h.csv")
+write.csv(han, "han19.csv")
+write.csv(gma.hourly, "gma19-h.csv")
+write.csv(gma, "gma19.csv")
+write.csv(plo.hourly, "plo19-h.csv")
+write.csv(plo, "plo19.csv")
+
+
+
 # upload to google sheets
+
 require(googlesheets)
 #gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
 
@@ -176,3 +187,5 @@ gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "plo", input = plo, anchor = "A1", byrow = T)
 #gs_edit_cells(ss = gs, ws = "ant", input = ant, anchor = "A1", byrow = T)
+
+
