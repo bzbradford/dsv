@@ -161,11 +161,10 @@ plo.hourly =
   filter(Date >= "2019-05-01")
 plo = makeDaily(plo.hourly)
 
-# ant =
-#   loadDat("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "Antigo") %>%
-#   filter(Date >= "2019-05-01") %>%
-#   makeDaily()
-# write.csv(ant, "ant19.csv")
+ant.hourly =
+  loadDat("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "Antigo") %>%
+  filter(Date >= "2019-05-01")
+ant = makeDaily(ant.hourly)
 
 
 # write to csv
@@ -175,7 +174,8 @@ write.csv(gma.hourly, "gma19-h.csv")
 write.csv(gma, "gma19.csv")
 write.csv(plo.hourly, "plo19-h.csv")
 write.csv(plo, "plo19.csv")
-
+write.csv(ant.hourly, "ant19-h.csv")
+write.csv(ant, "ant19.csv")
 
 
 # upload to google sheets
@@ -186,6 +186,4 @@ require(googlesheets)
 gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "plo", input = plo, anchor = "A1", byrow = T)
-#gs_edit_cells(ss = gs, ws = "ant", input = ant, anchor = "A1", byrow = T)
-
-
+gs_edit_cells(ss = gs, ws = "ant", input = ant, anchor = "A1", byrow = T)
