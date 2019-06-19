@@ -2,7 +2,7 @@
 # Developed by Ben Bradford, UW Madison, 2019 (bbradford@wisc.edu)
 
 
-# Function definitions ----
+# function definitions ----
 
 # load and parse data files from loggers
 loadDat = function(file, loc) {
@@ -145,25 +145,28 @@ makeDaily = function(df) {
 # Run this section ----
 
 require(tidyverse)
+require(googlesheets)
 
+
+# load hourlies
 han.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "Hancock") %>%
   filter(Date >= "2019-05-01")
-han = makeDaily(han.hourly)
-
 gma.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "GrandMarsh") %>%
   filter(Date >= "2019-05-01")
-gma = makeDaily(gma.hourly)
-
 plo.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "Plover") %>%
   filter(Date >= "2019-05-01")
-plo = makeDaily(plo.hourly)
-
 ant.hourly =
   loadDat("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "Antigo") %>%
   filter(Date >= "2019-05-01")
+
+
+# make dailies
+han = makeDaily(han.hourly)
+gma = makeDaily(gma.hourly)
+plo = makeDaily(plo.hourly)
 ant = makeDaily(ant.hourly)
 
 
@@ -179,10 +182,7 @@ write.csv(ant, "ant19.csv")
 
 
 # upload to google sheets
-
-require(googlesheets)
 #gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
-
 gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
 gs_edit_cells(ss = gs, ws = "plo", input = plo, anchor = "A1", byrow = T)
