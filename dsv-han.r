@@ -1,13 +1,13 @@
 # Process CR1000 data logger outputs and generate DSV and PDays
 # Developed by Ben Bradford, UW Madison, 2019 (bbradford@wisc.edu)
 
-#!"/Program Files/R/R-3.6.0/bin" Rscript
 
-require(tidyverse)
-require(googlesheets)
+# Function definitions ----------------------------------------------------
 
 # load and parse data files from loggers
 loadDat = function(file, loc) {
+  require(dplyr)
+  
   # parse file
   headers = read.csv(file, skip = 1, header = F, nrows = 1, as.is = T)
   df = read.csv(file, skip = 4, header = F)
@@ -21,13 +21,15 @@ loadDat = function(file, loc) {
     mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
 }
 
-
 # generate dsv from leaf wetness hours and avg temp during high RH hours
-dsv = function(tavgC, lw) {
+dsv <- function(tavgC, lw) {
+  require(dplyr)
+  
   # return 0 if arguments are NA
   if (is.na(tavgC) | is.na(lw)) {
     return(0)
   }
+  
   # return dsvs based on temp and leaf wetness
   if (tavgC > 13 & tavgC < 18) {
     return(case_when(
@@ -63,9 +65,10 @@ dsv = function(tavgC, lw) {
   return(0)
 }
 
-
 # function generates Farenheit p-days from daily min/max temps
-pday = function(tminF, tmaxF) {
+pday <- function(tminF, tmaxF) {
+  require(dplyr)
+  
   # check for NA arguments
   if (is.na(tminF) | is.na(tmaxF)) {return(0)}
   
@@ -94,10 +97,9 @@ pday = function(tminF, tmaxF) {
   return(round(Fpday, 2))
 }
 
-
 # convert hourly readings to daily summaries
-makeDaily = function(df) {
-  require(tidyverse)
+makeDaily <- function(df) {
+  require(dplyr)
   
   # average temps from high RH hours
   HiRH = df %>%
@@ -146,11 +148,16 @@ makeDaily = function(df) {
   return(joined)
 }
 
-setwd("/dsv")
+
+# Main code ---------------------------------------------------------------
+
+require(dplyr)
+require(googlesheets4)
+
+setwd("C:/dsv")
 file.copy("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "han.dat", overwrite = TRUE)
-han.hourly = loadDat("han.dat", "Hancock") %>% filter(Date >= "2019-05-01")
-han = makeDaily(han.hourly)
-write.csv(han.hourly, "han19-hourly.csv")
-write.csv(han, "han19.csv")
-gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
-gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
+han_hr <- loadDat("han.dat", "Hancock") %>% filter(Date >= "2020-05-01")
+han <- makeDaily(han_hr)
+write_csv(han_hr, "han-hourly-2020.csv")
+write_csv(han, "han-2020.csv")
+write_sheet(han, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "han")
