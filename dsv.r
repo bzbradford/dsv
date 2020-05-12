@@ -1,11 +1,30 @@
+#!Rscript
+
 # Process CR1000 data logger outputs and generate DSV and PDays
 # Developed by Ben Bradford, UW Madison, 2019 (bbradford@wisc.edu)
 
+args = commandArgs(trailingOnly = TRUE)
+stationNames = c("han", "gma", "plo", "ant")
 
-# function definitions ----
+# test if there is at least one argument: if not, return an error
+if (length(args) == 0) {
+  stop("Station name must be supplied as an argument (han, gma, plo, ant)",
+       call. = FALSE)
+} else if (!(args[1] %in% stationNames)) {
+  stop("Invalid station name supplied", call. = FALSE)
+}
+
+if (length(args) > 1) {message("Ignoring extra arguments")}
+
+# load required libraries
+library(dplyr)
+library(readr)
+library(googlesheets4)
 
 # load and parse data files from loggers
 loadDat = function(file, loc) {
+  require(dplyr)
+  
   # parse file
   headers = read.csv(file, skip = 1, header = F, nrows = 1, as.is = T)
   df = read.csv(file, skip = 4, header = F)
@@ -20,11 +39,14 @@ loadDat = function(file, loc) {
 }
 
 # generate dsv from leaf wetness hours and avg temp during high RH hours
-dsv = function(tavgC, lw) {
+dsv <- function(tavgC, lw) {
+  require(dplyr)
+  
   # return 0 if arguments are NA
   if (is.na(tavgC) | is.na(lw)) {
     return(0)
   }
+  
   # return dsvs based on temp and leaf wetness
   if (tavgC > 13 & tavgC < 18) {
     return(case_when(
@@ -61,7 +83,9 @@ dsv = function(tavgC, lw) {
 }
 
 # function generates Farenheit p-days from daily min/max temps
-pday = function(tminF, tmaxF) {
+pday <- function(tminF, tmaxF) {
+  require(dplyr)
+  
   # check for NA arguments
   if (is.na(tminF) | is.na(tmaxF)) {return(0)}
   
@@ -91,8 +115,8 @@ pday = function(tminF, tmaxF) {
 }
 
 # convert hourly readings to daily summaries
-makeDaily = function(df) {
-  require(tidyverse)
+makeDaily <- function(df) {
+  require(dplyr)
   
   # average temps from high RH hours
   HiRH = df %>%
@@ -141,49 +165,50 @@ makeDaily = function(df) {
   return(joined)
 }
 
+# define main function
+main <- function(ws) {
+  require(dplyr)
+  require(readr)
+  require(googlesheets4)
+  
+  setwd("C:/dsv")
+  
+  # set target google sheet
+  gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
+  
+  if (ws == "han") {
+    file.copy("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "han.dat", overwrite = TRUE)
+    han_hr <- loadDat("han.dat", "Hancock") %>% filter(Date >= "2020-05-01")
+    han <- makeDaily(han_hr)
+    write_csv(han_hr, "han-hourly-2020.csv")
+    write_csv(han, "han-2020.csv")
+    write_sheet(han, gs, "han")
+  }
+  if (ws == "gma") {
+    file.copy("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "gma.dat", overwrite = TRUE)
+    gma_hr <- loadDat("gma.dat", "Grand Marsh") %>% filter(Date >= "2020-05-01")
+    gma <- makeDaily(gma_hr)
+    write_csv(gma_hr, "gma-hourly-2020.csv")
+    write_csv(gma, "gma-2020.csv")
+    write_sheet(gma, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "gma")
+  }
+  if (ws == "plo") {
+    file.copy("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "plo.dat", overwrite = TRUE)
+    plo_hr <- loadDat("plo.dat", "Plover") %>% filter(Date >= "2020-05-01")
+    plo <- makeDaily(plo_hr)
+    write_csv(plo_hr, "plo-hourly-2020.csv")
+    write_csv(plo, "plo-2020.csv")
+    write_sheet(plo, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "plo")
+  }
+  if (ws == "ant") {
+    file.copy("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "ant.dat", overwrite = TRUE)
+    ant_hr <- loadDat("ant.dat", "Antigo") %>% filter(Date >= "2020-05-01")
+    ant <- makeDaily(ant_hr)
+    write_csv(ant_hr, "ant-hourly-2020.csv")
+    write_csv(ant, "ant-2020.csv")
+    write_sheet(ant, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "ant")
+  }
+}
 
-# Run this section ----
-
-require(tidyverse)
-require(googlesheets)
-
-
-# load hourlies
-han.hourly =
-  loadDat("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "Hancock") %>%
-  filter(Date >= "2019-05-01")
-gma.hourly =
-  loadDat("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "GrandMarsh") %>%
-  filter(Date >= "2019-05-01")
-plo.hourly =
-  loadDat("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "Plover") %>%
-  filter(Date >= "2019-05-01")
-ant.hourly =
-  loadDat("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "Antigo") %>%
-  filter(Date >= "2019-05-01")
-
-
-# make dailies
-han = makeDaily(han.hourly)
-gma = makeDaily(gma.hourly)
-plo = makeDaily(plo.hourly)
-ant = makeDaily(ant.hourly)
-
-
-# write to csv
-write.csv(han.hourly, "han19-h.csv")
-write.csv(han, "han19.csv")
-write.csv(gma.hourly, "gma19-h.csv")
-write.csv(gma, "gma19.csv")
-write.csv(plo.hourly, "plo19-h.csv")
-write.csv(plo, "plo19.csv")
-write.csv(ant.hourly, "ant19-h.csv")
-write.csv(ant, "ant19.csv")
-
-
-# upload to google sheets
-#gs = gs_key("1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w")
-gs_edit_cells(ss = gs, ws = "han", input = han, anchor = "A1", byrow = T)
-gs_edit_cells(ss = gs, ws = "gma", input = gma, anchor = "A1", byrow = T)
-gs_edit_cells(ss = gs, ws = "plo", input = plo, anchor = "A1", byrow = T)
-gs_edit_cells(ss = gs, ws = "ant", input = ant, anchor = "A1", byrow = T)
+# run main function
+main(args[1])

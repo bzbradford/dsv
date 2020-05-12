@@ -152,6 +152,7 @@ makeDaily <- function(df) {
 # Main code ---------------------------------------------------------------
 
 require(dplyr)
+require(readr)
 require(googlesheets4)
 
 setwd("C:/dsv")
