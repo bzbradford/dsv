@@ -176,37 +176,53 @@ main <- function(ws) {
   # set target google sheet
   gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
   
+  
   if (ws == "han") {
-    file.copy("C:/Campbellsci/LoggerNet/Data/Hancock_Hr1.dat", "han.dat", overwrite = TRUE)
-    han_hr <- loadDat("han.dat", "Hancock") %>% filter(Date >= "2020-05-01")
+    message("Processing Hancock station data...")
+    file.copy("C:/Campbellsci/LoggerNet/Hancock_Hr1.dat",
+              "han.dat",
+              overwrite = TRUE)
+    han_hr <-
+      loadDat("han.dat", "Hancock") %>% filter(Date >= "2020-05-01")
     han <- makeDaily(han_hr)
     write_csv(han_hr, "han-hourly-2020.csv")
     write_csv(han, "han-2020.csv")
     write_sheet(han, gs, "han")
-  }
-  if (ws == "gma") {
-    file.copy("C:/Campbellsci/LoggerNet/Data/GrandMarsh_Hr1.dat", "gma.dat", overwrite = TRUE)
-    gma_hr <- loadDat("gma.dat", "Grand Marsh") %>% filter(Date >= "2020-05-01")
+  } else if (ws == "gma") {
+    message("Processing Grand Marsh station data...")
+    file.copy("C:/Campbellsci/LoggerNet/GrandMarsh_Hr1.dat",
+              "gma.dat",
+              overwrite = TRUE)
+    gma_hr <-
+      loadDat("gma.dat", "Grand Marsh") %>% filter(Date >= "2020-05-01")
     gma <- makeDaily(gma_hr)
     write_csv(gma_hr, "gma-hourly-2020.csv")
     write_csv(gma, "gma-2020.csv")
     write_sheet(gma, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "gma")
-  }
-  if (ws == "plo") {
-    file.copy("C:/Campbellsci/LoggerNet/Data/Plover_Hr1.dat", "plo.dat", overwrite = TRUE)
-    plo_hr <- loadDat("plo.dat", "Plover") %>% filter(Date >= "2020-05-01")
+  } else if (ws == "plo") {
+    message("Processing Plover station data...")
+    file.copy("C:/Campbellsci/LoggerNet/Plover_Hr1.dat",
+              "plo.dat",
+              overwrite = TRUE)
+    plo_hr <-
+      loadDat("plo.dat", "Plover") %>% filter(Date >= "2020-05-01")
     plo <- makeDaily(plo_hr)
     write_csv(plo_hr, "plo-hourly-2020.csv")
     write_csv(plo, "plo-2020.csv")
     write_sheet(plo, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "plo")
-  }
-  if (ws == "ant") {
-    file.copy("C:/Campbellsci/LoggerNet/Data/Antigo_Hr1.dat", "ant.dat", overwrite = TRUE)
-    ant_hr <- loadDat("ant.dat", "Antigo") %>% filter(Date >= "2020-05-01")
+  } else if (ws == "ant") {
+    message("Processing Antigo station data...")
+    file.copy("C:/Campbellsci/LoggerNet/Antigo_Hr1.dat",
+              "ant.dat",
+              overwrite = TRUE)
+    ant_hr <-
+      loadDat("ant.dat", "Antigo") %>% filter(Date >= "2020-05-01")
     ant <- makeDaily(ant_hr)
     write_csv(ant_hr, "ant-hourly-2020.csv")
     write_csv(ant, "ant-2020.csv")
     write_sheet(ant, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "ant")
+  } else {
+    message("No applicable processes for station '", ws, "'")
   }
 }
 
