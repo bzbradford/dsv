@@ -1,40 +1,48 @@
-#!Rscript
-
 # Process CR1000 data logger outputs and generate DSV and PDays
-# Developed by Ben Bradford, UW Madison, 2019 (bbradford@wisc.edu)
+# Developed by Ben Bradford, UW Madison, 2020 (bbradford@wisc.edu)
 
-# load required libraries
-library(dplyr)
-library(readr)
-library(googlesheets4)
+# Must call this script with the station name supplied as an argument
 
 
-# set up file locations
-gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
-loggerPath <- "C:/Campbellsci/LoggerNet"
-setwd("C:/dsv")
-dateCutoff <- "2020-05-01"
+
+# Setup -------------------------------------------------------------------
+
+# set local variables
+setwd("C:/dsv") # set working directory
 
 
-args = commandArgs(trailingOnly = TRUE)
-stationNames = c("han", "gma", "plo", "ant")
-
-
-# test if there is at least one argument: if not, return an error
-if (length(args) == 0) {
-  stop("Station name must be supplied as an argument (han, gma, plo, ant)",
-       call. = FALSE)
-} else if (!(args[1] %in% stationNames)) {
-  stop("Invalid station name supplied", call. = FALSE)
+# debugging
+logtext <- function(msg, logfile = "log.txt") {
+  cat(format(Sys.time(), "[%Y-%m-%d %X]\t"), msg, "\n", file = logfile, append = T)
 }
 
-if (length(args) > 1) {message("Ignoring extra arguments")}
+
+# read and log script arguments
+args <- commandArgs(trailingOnly = TRUE)
+
+if (length(args) == 0) {
+  message("Station name must be supplied as script argument.")
+  logtext("ERROR: Script called without station name.")
+  Sys.sleep(3)
+  stop(call. = F)
+} else {
+  message("Script called with args: ", args)
+  logtext(paste("Script called with args:", args))
+}
 
 
-# load and parse data files from loggers
-loadDat = function(file, loc) {
+# load required libraries
+if(!require(dplyr)){install.packages("dplyr")}
+if(!require(readr)){install.packages("readr")}
+if(!require(googlesheets4)){install.packages("googlesheets4")}
+
+
+# Define functions --------------------------------------------------------
+
+## load and parse data files from loggers
+loadDat <- function(file, loc) {
   
-  # parse file
+  # parse TOA5 file
   headers = read.csv(file, skip = 1, header = F, nrows = 1, as.is = T)
   df = read.csv(file, skip = 4, header = F)
   colnames(df) = headers
@@ -48,7 +56,7 @@ loadDat = function(file, loc) {
 }
 
 
-# generate dsv from leaf wetness hours and avg temp during high RH hours
+## generate dsv from leaf wetness hours and avg temp during high RH hours
 dsv <- function(tavgC, lw) {
   
   # return 0 if arguments are NA
@@ -92,7 +100,7 @@ dsv <- function(tavgC, lw) {
 }
 
 
-# function generates Farenheit p-days from daily min/max temps
+## function generates Farenheit p-days from daily min/max temps
 pday <- function(tminF, tmaxF) {
 
   # check for NA arguments
@@ -124,14 +132,14 @@ pday <- function(tminF, tmaxF) {
 }
 
 
-# convert hourly readings to daily summaries
+## convert hourly readings to daily summaries
 makeDaily <- function(df) {
 
   # average temps from high RH hours
   HiRH = df %>%
     filter(HiRH == 1) %>%
     group_by(Date) %>%
-    summarise(TavgC.HiRH = mean(Tair_C_Avg))
+    summarise(TavgC.HiRH = mean(Tair_C_Avg), .groups = "drop")
   
   # main daily summary
   daily = df %>%
@@ -152,7 +160,8 @@ makeDaily <- function(df) {
       MaxRH = max(AvgHrRH),
       MeanRH = mean(AvgHrRH),
       HrsHiRH = sum(HiRH),
-      PrecipIn = sum(Rain_in_Tot)
+      PrecipIn = sum(Rain_in_Tot),
+      .groups = "drop"
     ) %>%
     group_by(Year) %>%
     mutate(PrecipCumIn = cumsum(PrecipIn))
@@ -175,50 +184,37 @@ makeDaily <- function(df) {
 }
 
 
-# Process data
+
+# Process station data ----------------------------------------------------
+
+gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w" # target google sheet
+dateCutoff <- "2020-05-01" # filter values before this date
+year = "2020"
+
+
+runDat <- function(arg, name, remote) {
+  local = paste0(arg, ".dat")
+  file.copy(remote, local, overwrite = T)
+  hourly = loadDat(local, name) %>% filter(Date >= dateCutoff)
+  daily = makeDaily(hourly)
+  write_csv(hourly, paste0(arg, "-hourly-", year, ".csv"))
+  write_csv(daily, paste0(arg, "-", year, ".csv"))
+  write_sheet(daily, gs, arg)
+  logtext(paste("Script completed for station", arg))
+}
+
+
 if (args[1] == "han") {
-  
-  # copy logger .dat file to working directory
-  file.copy(file.path(loggerPath, "Hancock_Hr1.dat"), "han.dat", overwrite = TRUE) 
-  
-  # read logger data and filter for current season
-  han_hr <- filter(loadDat("han.dat", "Hancock"), Date >= dateCutoff)
-  
-  han <- makeDaily(han_hr) # computes daily values from hourly values
-  write_csv(han_hr, "han-hourly-2020.csv") # save local hourly data
-  write_csv(han, "han-2020.csv") # save local daily data
-  write_sheet(han, gs, sheet = "han") # upload daily data to google sheets
-  
+  runDat("han", "Hancock", "C:/Campbellsci/LoggerNet/Hancock_Hr1.dat")
 } else if (args[1] == "gma") {
-  
-  file.copy(file.path(loggerPath, "GrandMarsh_Hr1.dat"), "gma.dat", overwrite = TRUE)
-  gma_hr <- filter(loadDat("gma.dat", "Grand Marsh"), Date >= dateCutoff)
-  gma <- makeDaily(gma_hr)
-  write_csv(gma_hr, "gma-hourly-2020.csv")
-  write_csv(gma, "gma-2020.csv")
-  write_sheet(gma, gs, sheet = "gma")
-  
+  runDat("gma", "Grand Marsh", "C:/Campbellsci/LoggerNet/GrandMarsh_Hr1.dat")
 } else if (args[1] == "plo") {
-  
-  file.copy(file.path(loggerPath, "Plover_Hr1.dat"), "plo.dat", overwrite = TRUE)
-  plo_hr <- filter(loadDat("plo.dat", "Plover"), Date >= dateCutoff)
-  plo <- makeDaily(plo_hr)
-  write_csv(plo_hr, "plo-hourly-2020.csv")
-  write_csv(plo, "plo-2020.csv")
-  write_sheet(plo, gs, sheet = "plo")
-  
+  runDat("plo", "Plover", "C:/Campbellsci/LoggerNet/Plover_Hr1.dat")
 } else if (args[1] == "ant") {
-  
-  file.copy(file.path(loggerPath, "Antigo_Hr1.dat"), "ant.dat", overwrite = TRUE)
-  ant_hr <- filter(loadDat("ant.dat", "Antigo"), Date >= dateCutoff)
-  ant <- makeDaily(ant_hr)
-  write_csv(ant_hr, "ant-hourly-2020.csv")
-  write_csv(ant, "ant-2020.csv")
-  write_sheet(ant, gs, sheet = "ant")
-  
+  runDat("ant", "Antigo", "C:/Campbellsci/LoggerNet/Antigo_Hr1.dat")
 } else {
-  
-  message("No applicable processes for station '", ws, "'")
-  
+  message("'", args[1], "' is not a valid station name.")
+  logtext("ERROR: Invalid station name.")
+  Sys.sleep(3)
 }
 
