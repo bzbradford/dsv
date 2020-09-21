@@ -21,6 +21,7 @@ loadDat = function(file, loc) {
     mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
 }
 
+
 # generate dsv from leaf wetness hours and avg temp during high RH hours
 dsv <- function(tavgC, lw) {
   require(dplyr)
@@ -65,6 +66,7 @@ dsv <- function(tavgC, lw) {
   return(0)
 }
 
+
 # function generates Farenheit p-days from daily min/max temps
 pday <- function(tminF, tmaxF) {
   require(dplyr)
@@ -96,6 +98,7 @@ pday <- function(tminF, tmaxF) {
   # return integer pdays
   return(round(Fpday, 2))
 }
+
 
 # convert hourly readings to daily summaries
 makeDaily <- function(df) {
@@ -149,74 +152,45 @@ makeDaily <- function(df) {
 }
 
 
+# Process station data ----------------------------------------------------
 
-# Main --------------------------------------------------------------------
-
-
-require(tidyverse)
-require(googlesheets4)
-
-# data input loc
-wd <- "C:/dsv"
-
-# set target google sheet
-gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
+gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w" # target google sheet
+dateCutoff <- "2020-05-01" # filter values before this date
+year = "2020"
 
 
-## Hancock ##
-message("Processing Hancock station data...")
-file.copy("C:/Campbellsci/LoggerNet/Hancock_Hr1.dat",
-          "han.dat",
-          overwrite = TRUE)
-han_hr <-
-  loadDat("han.dat", "Hancock") %>% filter(Date >= "2020-05-01")
-han <- makeDaily(han_hr)
-write_csv(han_hr, "han-hourly-2020.csv")
-write_csv(han, "han-2020.csv")
-#write_sheet(han, gs, "han")
+runDat <- function(arg, name, remote) {
+  local = paste0(arg, ".dat")
+  file.copy(remote, local, overwrite = T)
+  hourly = loadDat(local, name) %>% filter(Date >= dateCutoff)
+  daily = makeDaily(hourly)
+  write_csv(hourly, paste0(arg, "-hourly-", year, ".csv"))
+  write_csv(daily, paste0(arg, "-", year, ".csv"))
+  write_sheet(daily, gs, arg)
+  logtext(paste("Script completed for station", arg))
+}
 
 
-## Grand Marsh ##
-message("Processing Grand Marsh station data...")
-file.copy("C:/Campbellsci/LoggerNet/GrandMarsh_Hr1.dat",
-          "gma.dat",
-          overwrite = TRUE)
-gma_hr <-
-  loadDat("gma.dat", "Grand Marsh") %>% filter(Date >= "2020-05-01")
-gma <- makeDaily(gma_hr)
-write_csv(gma_hr, "gma-hourly-2020.csv")
-write_csv(gma, "gma-2020.csv")
-#write_sheet(gma, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "gma")
-
-
-## Plover ##
-message("Processing Plover station data...")
-file.copy("C:/Campbellsci/LoggerNet/Plover_Hr1.dat",
-          "plo.dat",
-          overwrite = TRUE)
-plo_hr <-
-  loadDat("plo.dat", "Plover") %>% filter(Date >= "2020-05-01")
-plo <- makeDaily(plo_hr)
-write_csv(plo_hr, "plo-hourly-2020.csv")
-write_csv(plo, "plo-2020.csv")
-#write_sheet(plo, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "plo")
-
-
-## Antigo ##
-message("Processing Antigo station data...")
-file.copy("C:/Campbellsci/LoggerNet/Antigo_Hr1.dat",
-          "ant.dat",
-          overwrite = TRUE)
-ant_hr <-
-  loadDat("ant.dat", "Antigo") %>% filter(Date >= "2020-05-01")
-ant <- makeDaily(ant_hr)
-write_csv(ant_hr, "ant-hourly-2020.csv")
-write_csv(ant, "ant-2020.csv")
-#write_sheet(ant, ss = "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w", sheet = "ant")
+if (args[1] == "han") {
+  runDat("han", "Hancock", "C:/Campbellsci/LoggerNet/Hancock_Hr1.dat")
+} else if (args[1] == "gma") {
+  runDat("gma", "Grand Marsh", "C:/Campbellsci/LoggerNet/GrandMarsh_Hr1.dat")
+} else if (args[1] == "plo") {
+  runDat("plo", "Plover", "C:/Campbellsci/LoggerNet/Plover_Hr1.dat")
+} else if (args[1] == "ant") {
+  runDat("ant", "Antigo", "C:/Campbellsci/LoggerNet/Antigo_Hr1.dat")
+} else {
+  message("'", args[1], "' is not a valid station name.")
+  logtext("ERROR: Invalid station name.")
+  Sys.sleep(3)
+}
 
 
 
-# Old data? ---------------------------------------------------------------
+
+
+
+# Old data ---------------------------------------------------------------
 
 gma_old <- loadDat("old_data/GrandMarsh_Hr1.dat", "Grand Marsh")
 han_old <- loadDat("old_data/Hancock_Hr1.dat", "Hancock")
