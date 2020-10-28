@@ -66,37 +66,33 @@ dsv <- function(tavgC, lw) {
   
   # return dsvs based on temp and leaf wetness
   if (tavgC > 13 & tavgC < 18) {
-    return(case_when(
-      lw <=  6 ~ 0,
-      lw <= 15 ~ 1,
-      lw <= 20 ~ 2,
-      T ~ 3))
+    if (lw <= 6) return (0)
+    if (lw <= 15) return (1)
+    if (lw <= 20) return (2)
+    return (3)
   }
   if (tavgC >= 18 & tavgC < 21) {
-    return(case_when(
-      lw <=  3 ~ 0,
-      lw <=  8 ~ 1,
-      lw <= 15 ~ 2,
-      lw <= 22 ~ 3,
-      T ~ 4))
+    if (lw <= 3) return (0)
+    if (lw <= 8) return (1)
+    if (lw <= 15) return (2)
+    if (lw <= 22) return (3)
+    return (4)
   }
   if (tavgC >= 21 & tavgC < 26) {
-    return(case_when(
-      lw <=  2 ~ 0,
-      lw <=  5 ~ 1,
-      lw <= 12 ~ 2,
-      lw <= 20 ~ 3,
-      T ~ 4))
+    if (lw <= 2) return (0)
+    if (lw <= 5) return (1)
+    if (lw <= 12) return (2)
+    if (lw <= 20) return (3)
+    return (4)
   }
-  if (tavgC >= 26 & tavgC < 29) {
-    return(case_when(
-      lw <=  3 ~ 0,
-      lw <=  8 ~ 1,
-      lw <= 15 ~ 2,
-      lw <= 22 ~ 3,
-      T ~ 4))
+  if (tavgC >= 26) {
+    if (lw <= 3) return (0)
+    if (lw <= 8) return (1)
+    if (lw <= 15) return (2)
+    if (lw <= 22) return (3)
+    return (4)
   }
-  return(0)
+  return (0)
 }
 
 
@@ -174,8 +170,7 @@ makeDaily <- function(df) {
     mutate(Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
     mutate(Pdaycum = cumsum(Pday)) %>%
     ungroup() %>%
-    mutate_if(is.numeric, round, 2) %>%
-    select(-"TavgC.HiRH")
+    mutate_if(is.numeric, round, 2)
   
   # replace NA with zero
   joined[is.na(joined)] = 0
