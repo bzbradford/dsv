@@ -14,13 +14,19 @@ if (!require(googlesheets4)) install.packages("googlesheets4")
 
 # set up file locations
 setwd("C:/dsv")
-gs <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w" # target google sheet
-dateCutoff <- "2021-05-01" # filter values before this date
-year = "2021"
+
+# google sheets
+gs_daily <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
+gs_hourly <- "1cISP1FmwP25FY41o0pSSKARW0g7cbleaSJOLslrOaUo"
+
+ # filter values before this date
+year <- strftime(Sys.Date(), "%Y")
+dateCutoff <- paste0(year, "-05-01")
+
 
 # debugging
 logtext <- function(msg, logfile = "log.txt") {
-  cat(format(Sys.time(), "[%Y-%m-%d %X]\t"), msg, "\n", file = logfile, append = T)
+  cat(format(Sys.time(), "\n[%Y-%m-%d %X] "), msg, "\n", file = logfile, append = T)
 }
 
 # read and log script arguments
@@ -40,6 +46,10 @@ if (length(args) == 0) {
 
 # Define functions --------------------------------------------------------
 
+c_to_f <- function(temp) {
+  temp * 9 / 5.0 + 32
+}
+
 # load and parse data files from loggers
 loadDat <- function(file, loc) {
   
@@ -50,19 +60,27 @@ loadDat <- function(file, loc) {
   
   # add some columns
   df %>%
-    mutate(Location = loc) %>%
-    mutate(Date = as.Date(TIMESTAMP)) %>%
-    mutate(Year = as.numeric(format(Date, "%Y"))) %>%
-    mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0))
+    as_tibble() %>%
+    select(-contains("soil")) %>%
+    mutate(
+      Location = loc,
+      Date = as.Date(TIMESTAMP),
+      DateTime = parse_datetime(TIMESTAMP),
+      Year = as.numeric(format(Date, "%Y")),
+      .after = RECORD) %>%
+    mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0)) %>%
+    mutate(across(contains("_C_"), c_to_f, .names = "{.col}_F"), .before = "Rain_in_Tot") %>%
+    rename_with(~ gsub("_C", "", .x), contains("_F")) %>%
+    rename_with(~ paste0(gsub("_C", "", .x), "_C"), .cols = contains("_C_")) %>%
+    select(-"TIMESTAMP") %>%
+    mutate(RECORD = row_number() - 1)
 }
 
 # generate dsv from leaf wetness hours and avg temp during high RH hours
 dsv <- function(tavgC, lw) {
   
   # return 0 if arguments are NA
-  if (is.na(tavgC) | is.na(lw)) {
-    return(0)
-  }
+  if (is.na(tavgC) | is.na(lw)) return(0)
   
   # return dsvs based on temp and leaf wetness
   if (tavgC > 13 & tavgC < 18) {
@@ -136,22 +154,18 @@ makeDaily <- function(df) {
   HiRH <- df %>%
     filter(HiRH == 1) %>%
     group_by(Date) %>%
-    summarise(TavgC.HiRH = mean(Tair_C_Avg), .groups = "drop")
+    summarise(TavgC.HiRH = mean(Tair_Avg_C), .groups = "drop")
   
   # main daily summary
   daily <- df %>%
-    group_by(Year, Location, Date) %>%
-    mutate(
-      TminF = (Tair_C_Min * 9 / 5) + 32,
-      TmaxF = (Tair_C_Max * 9 / 5) + 32,
-      TavgF = (Tair_C_Avg * 9 / 5) + 32) %>%
+    group_by(Year, Location, Date, DayOfYear) %>%
     summarise(
-      TminC = min(Tair_C_Min),
-      TmaxC = max(Tair_C_Max),
-      TavgC = mean(Tair_C_Avg),
-      TminF = min(TminF),
-      TmaxF = max(TmaxF),
-      TavgF = mean(TavgF),
+      TminC = min(Tair_Min_C),
+      TmaxC = max(Tair_Max_C),
+      TavgC = mean(Tair_Avg_C),
+      TminF = min(Tair_Min_F),
+      TmaxF = max(Tair_Max_F),
+      TavgF = mean(Tair_Avg_F),
       MinRH = min(AvgHrRH),
       MaxRH = max(AvgHrRH),
       MeanRH = mean(AvgHrRH),
@@ -162,7 +176,7 @@ makeDaily <- function(df) {
     mutate(PrecipCumIn = cumsum(PrecipIn))
   
   joined <- daily %>%
-    left_join(HiRH) %>%
+    left_join(HiRH, by = "Date") %>%
     group_by(Year) %>%
     mutate(
       DSV = mapply(dsv, .$TavgC.HiRH, .$HrsHiRH),
@@ -170,7 +184,8 @@ makeDaily <- function(df) {
       Pday = mapply(pday, .$TminF, .$TmaxF)) %>%
     mutate(Pdaycum = cumsum(Pday)) %>%
     ungroup() %>%
-    mutate_if(is.numeric, round, 2)
+    mutate_if(is.numeric, round, 2) %>%
+    mutate(RECORD = row_number() - 1, .before = everything())
   
   # replace NA with zero
   joined[is.na(joined)] <- 0
@@ -183,26 +198,37 @@ makeDaily <- function(df) {
 # Process station data ----------------------------------------------------
 
 runDat <- function(arg, name, remote) {
-  local = paste0(arg, ".dat")
+  local <- paste0(arg, ".dat")
+  
+  # copy dat to working directory
   file.copy(remote, local, overwrite = T)
-  hourly = loadDat(local, name) %>% filter(Date >= dateCutoff)
-  daily = makeDaily(hourly)
+  
+  # process data
+  hourly <- loadDat(local, name) %>%
+    filter(Date >= dateCutoff)
+  daily <- makeDaily(hourly)
+  
+  # save locally to csv
   write_csv(hourly, paste0(arg, "-hourly-", year, ".csv"))
   write_csv(daily, paste0(arg, "-", year, ".csv"))
-  write_sheet(daily, gs, arg)
+  
+  # upload to google sheets
+  write_sheet(daily, gs_daily, arg)
+  write_sheet(hourly, gs_hourly, arg)
+  
   logtext(paste("Script completed for", name))
 }
 
 arg <- args[1]
 
 if (arg == "han") {
-  runDat("han", "Hancock", "C:/Campbellsci/LoggerNet/Hancock_Hr1.dat")
+  runDat(arg, "Hancock", "C:/Campbellsci/LoggerNet/Hancock_Hourly.dat")
 } else if (arg == "gma") {
-  runDat("gma", "Grand Marsh", "C:/Campbellsci/LoggerNet/GrandMarsh_Hr1.dat")
+  runDat(arg, "Grand Marsh", "C:/Campbellsci/LoggerNet/GrandMarsh_Hourly.dat")
 } else if (arg == "plo") {
-  runDat("plo", "Plover", "C:/Campbellsci/LoggerNet/Plover_Hr1.dat")
+  runDat(arg, "Plover", "C:/Campbellsci/LoggerNet/Plover_Hourly.dat")
 } else if (arg == "ant") {
-  runDat("ant", "Antigo", "C:/Campbellsci/LoggerNet/Antigo_Hr1.dat")
+  runDat(arg, "Antigo", "C:/Campbellsci/LoggerNet/Antigo_Hourly.dat")
 } else {
   message("'", arg, "' is not a valid station name.")
   logtext(paste0("ERROR: Invalid station name '", arg, "'"))

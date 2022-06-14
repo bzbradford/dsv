@@ -4,6 +4,9 @@
 library(tidyverse)
 
 
+library(googlesheets4)
+gs4_auth()
+
 
 # Define functions --------------------------------------------------------
 
@@ -186,3 +189,58 @@ write_csv(makeDaily(gma_2020), "gma-2020.csv")
 
 plo_2020 <- loadDat("plo.dat", "Plover")
 write_csv(makeDaily(plo_2020), "plo-2020.csv")
+
+
+
+# 2022 --------------------------------------------------------------------
+
+file = "han.dat"
+loc = "Hancock"
+arg = "han"
+
+han_hourly <- loadDat("han.dat", "Hancock")
+write_csv(hourly, paste0(arg, "-hourly-", year, ".csv"))
+write_sheet(daily, gs_hourly, arg)
+
+
+han_daily = makeDaily(han_hourly)
+
+sure_harvest_hourly
+
+han_hourly %>%
+  select(
+    Location,
+    Record = RECORD,
+    DateTime = TIMESTAMP,
+    DayOfYear,
+    HourOfDay,
+    Tair_C_Min,
+    Tair_C_Max,
+    Rain_in_Tot,
+    AvgHrRH)
+  
+han_hourly %>%
+  mutate(across(contains("_C_"), c_to_f, .names = "{.col}_F")) %>%
+  rename_with(~ gsub("_C", "", .x), contains("_F")) %>%
+  view()
+
+
+c_to_f <- function(temp) {
+  temp * 9 / 5.0 + 32
+}
+
+hourly <- loadDat("han.dat", "Hancock")
+write_csv(hourly, paste0(arg, "-hourly-", year, ".csv"))
+write_sheet(hourly, gs_hourly, arg)
+
+
+daily <- makeDaily(hourly)
+write_csv(daily, paste0(arg, "-", year, ".csv"))
+write_sheet(daily, gs_daily, arg)
+
+
+hourly
+gsub("_C_", "_F_", names(hourly))
+
+hourly %>%
+  rename_with(~ paste0(gsub("_C", "", .x), "_C"), .cols = contains("_C_"))
