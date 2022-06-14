@@ -7,21 +7,20 @@
 
 # Setup -------------------------------------------------------------------
 
-# load required libraries
 if (!require(dplyr)) install.packages("dplyr")
 if (!require(readr)) install.packages("readr")
 if (!require(googlesheets4)) install.packages("googlesheets4")
 
-# set up file locations
 setwd("C:/dsv")
 
-# google sheets
-gs_daily <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
-gs_hourly <- "1cISP1FmwP25FY41o0pSSKARW0g7cbleaSJOLslrOaUo"
 
- # filter values before this date
-year <- strftime(Sys.Date(), "%Y")
-dateCutoff <- paste0(year, "-05-01")
+
+# Define functions --------------------------------------------------------
+
+# convert temps
+c_to_f <- function(temp) {
+  temp * 9 / 5.0 + 32
+}
 
 
 # debugging
@@ -29,26 +28,6 @@ logtext <- function(msg, logfile = "log.txt") {
   cat(format(Sys.time(), "\n[%Y-%m-%d %X] "), msg, "\n", file = logfile, append = T)
 }
 
-# read and log script arguments
-args <- commandArgs(trailingOnly = TRUE)
-
-if (length(args) == 0) {
-  message("Station name must be supplied as script argument.")
-  logtext("ERROR: Script called without station name.")
-  Sys.sleep(3)
-  stop(call. = F)
-} else {
-  message("Script called with args: ", args)
-  logtext(paste("Script called with args:", args))
-}
-
-
-
-# Define functions --------------------------------------------------------
-
-c_to_f <- function(temp) {
-  temp * 9 / 5.0 + 32
-}
 
 # load and parse data files from loggers
 loadDat <- function(file, loc) {
@@ -75,6 +54,7 @@ loadDat <- function(file, loc) {
     select(-"TIMESTAMP") %>%
     mutate(RECORD = row_number() - 1)
 }
+
 
 # generate dsv from leaf wetness hours and avg temp during high RH hours
 dsv <- function(tavgC, lw) {
@@ -117,6 +97,7 @@ dsv <- function(tavgC, lw) {
   return(0)
 }
 
+
 # function generates Farenheit p-days from daily min/max temps
 pday <- function(tminF, tmaxF) {
 
@@ -146,6 +127,7 @@ pday <- function(tminF, tmaxF) {
   # return integer pdays
   return(round(Fpday, 2))
 }
+
 
 # convert hourly readings to daily summaries
 makeDaily <- function(df) {
@@ -194,9 +176,7 @@ makeDaily <- function(df) {
 }
 
 
-
-# Process station data ----------------------------------------------------
-
+# main process
 runDat <- function(arg, name, remote) {
   local <- paste0(arg, ".dat")
   
@@ -213,24 +193,52 @@ runDat <- function(arg, name, remote) {
   write_csv(daily, paste0(arg, "-", year, ".csv"))
   
   # upload to google sheets
-  write_sheet(daily, gs_daily, arg)
-  write_sheet(hourly, gs_hourly, arg)
+  write_sheet(daily, gs_daily, name)
+  write_sheet(hourly, gs_hourly, name)
   
   logtext(paste("Script completed for", name))
 }
 
+
+
+# Process station data ----------------------------------------------------
+
+# google sheets targets
+gs_daily <- "1cxdccapGiGpp8w2U4ZwlAH_oiwdLvhfniUtHuBhj75w"
+gs_hourly <- "1cISP1FmwP25FY41o0pSSKARW0g7cbleaSJOLslrOaUo"
+
+# filter values before this date
+year <- strftime(Sys.Date(), "%Y")
+dateCutoff <- paste0(year, "-05-01")
+
+# valid stations
+stn_codes <- c("han", "gma", "plo", "ant")
+stn_names <- list(
+  "han" = "Hancock",
+  "gma" = "Grand Marsh",
+  "plo" = "Plover",
+  "ant" = "Antigo"
+)
+stn_files <- list(
+  "han" = "C:/Campbellsci/LoggerNet/Hancock_Hourly.dat",
+  "gma" = "C:/Campbellsci/LoggerNet/GrandMarsh_Hourly.dat",
+  "plo" = "C:/Campbellsci/LoggerNet/Plover_Hourly.dat",
+  "ant" = "C:/Campbellsci/LoggerNet/Antigo_Hourly.dat"
+)
+
+# read and log script arguments
+args <- commandArgs(trailingOnly = TRUE)
+
+message("Script called with args: ", args)
+logtext(paste("Script called with args:", args))
+
 arg <- args[1]
 
-if (arg == "han") {
-  runDat(arg, "Hancock", "C:/Campbellsci/LoggerNet/Hancock_Hourly.dat")
-} else if (arg == "gma") {
-  runDat(arg, "Grand Marsh", "C:/Campbellsci/LoggerNet/GrandMarsh_Hourly.dat")
-} else if (arg == "plo") {
-  runDat(arg, "Plover", "C:/Campbellsci/LoggerNet/Plover_Hourly.dat")
-} else if (arg == "ant") {
-  runDat(arg, "Antigo", "C:/Campbellsci/LoggerNet/Antigo_Hourly.dat")
+if (arg %in% stn_codes) {
+  runDat(arg, stn_names[[arg]], stn_files[[arg]])
 } else {
   message("'", arg, "' is not a valid station name.")
   logtext(paste0("ERROR: Invalid station name '", arg, "'"))
   Sys.sleep(3)
 }
+
