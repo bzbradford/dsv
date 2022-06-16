@@ -212,7 +212,7 @@ han_hourly %>%
     Location,
     Record = RECORD,
     DateTime = TIMESTAMP,
-    DayOfYear,
+    DayOfYear = strftime("%y%j"),
     HourOfDay,
     Tair_C_Min,
     Tair_C_Max,

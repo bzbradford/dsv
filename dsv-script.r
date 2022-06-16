@@ -37,14 +37,17 @@ loadDat <- function(file, loc) {
   df = read.csv(file, skip = 4, header = F)
   colnames(df) = headers
   
+  # remove dubious values
+  df[df < -25] <- NA
+  
   # add some columns
   df %>%
     as_tibble() %>%
     select(-contains("soil")) %>%
     mutate(
       Location = loc,
-      Date = as.Date(TIMESTAMP),
-      DateTime = parse_datetime(TIMESTAMP),
+      DateTime = parse_datetime(TIMESTAMP) - 60 * 60, # timestamp is end of hour, shift to start of hour
+      Date = as.Date(DateTime),
       Year = as.numeric(format(Date, "%Y")),
       .after = RECORD) %>%
     mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0)) %>%
@@ -142,17 +145,17 @@ makeDaily <- function(df) {
   daily <- df %>%
     group_by(Year, Location, Date, DayOfYear) %>%
     summarise(
-      TminC = min(Tair_Min_C),
-      TmaxC = max(Tair_Max_C),
-      TavgC = mean(Tair_Avg_C),
-      TminF = min(Tair_Min_F),
-      TmaxF = max(Tair_Max_F),
-      TavgF = mean(Tair_Avg_F),
-      MinRH = min(AvgHrRH),
-      MaxRH = max(AvgHrRH),
-      MeanRH = mean(AvgHrRH),
-      HrsHiRH = sum(HiRH),
-      PrecipIn = sum(Rain_in_Tot),
+      TminC = min(Tair_Min_C, na.rm = T),
+      TmaxC = max(Tair_Max_C, na.rm = T),
+      TavgC = mean(Tair_Avg_C, na.rm = T),
+      TminF = min(Tair_Min_F, na.rm = T),
+      TmaxF = max(Tair_Max_F, na.rm = T),
+      TavgF = mean(Tair_Avg_F, na.rm = T),
+      MinRH = min(AvgHrRH, na.rm = T),
+      MaxRH = max(AvgHrRH, na.rm = T),
+      MeanRH = mean(AvgHrRH, na.rm = T),
+      HrsHiRH = sum(HiRH, na.rm = T),
+      PrecipIn = sum(Rain_in_Tot, na.rm = T),
       .groups = "drop") %>%
     group_by(Year) %>%
     mutate(PrecipCumIn = cumsum(PrecipIn))
