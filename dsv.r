@@ -205,19 +205,6 @@ write_sheet(daily, gs_hourly, arg)
 
 han_daily = makeDaily(han_hourly)
 
-sure_harvest_hourly
-
-han_hourly %>%
-  select(
-    Location,
-    Record = RECORD,
-    DateTime = TIMESTAMP,
-    DayOfYear = strftime("%y%j"),
-    HourOfDay,
-    Tair_C_Min,
-    Tair_C_Max,
-    Rain_in_Tot,
-    AvgHrRH)
   
 han_hourly %>%
   mutate(across(contains("_C_"), c_to_f, .names = "{.col}_F")) %>%
@@ -244,3 +231,10 @@ gsub("_C_", "_F_", names(hourly))
 
 hourly %>%
   rename_with(~ paste0(gsub("_C", "", .x), "_C"), .cols = contains("_C_"))
+
+
+
+han_daily %>%
+  mutate(across(where(is.numeric), ~ replace(.x, !is.finite(.x), NA)))
+
+~replace(is.finite(.x), .x, NA)

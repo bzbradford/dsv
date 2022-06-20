@@ -25,6 +25,7 @@ c_to_f <- function(temp) {
 
 # debugging
 logtext <- function(msg, logfile = "log.txt") {
+  message(msg)
   cat(format(Sys.time(), "\n[%Y-%m-%d %X] "), msg, "\n", file = logfile, append = T)
 }
 
@@ -34,7 +35,7 @@ loadDat <- function(file, loc) {
   
   # parse TOA5 file
   headers = read.csv(file, skip = 1, header = F, nrows = 1, as.is = T)
-  df = read.csv(file, skip = 4, header = F)
+  df = read.csv(file, skip = 4, header = F, na.strings = c("NA", "NAN"))
   colnames(df) = headers
   
   # remove dubious values
@@ -157,6 +158,7 @@ makeDaily <- function(df) {
       HrsHiRH = sum(HiRH, na.rm = T),
       PrecipIn = sum(Rain_in_Tot, na.rm = T),
       .groups = "drop") %>%
+    mutate(across(where(is.numeric), ~ replace(.x, !is.finite(.x), NA))) %>%
     group_by(Year) %>%
     mutate(PrecipCumIn = cumsum(PrecipIn))
   
@@ -171,9 +173,6 @@ makeDaily <- function(df) {
     ungroup() %>%
     mutate_if(is.numeric, round, 2) %>%
     mutate(RECORD = row_number() - 1, .before = everything())
-  
-  # replace NA with zero
-  joined[is.na(joined)] <- 0
   
   return(joined)
 }
@@ -232,15 +231,16 @@ stn_files <- list(
 # read and log script arguments
 args <- commandArgs(trailingOnly = TRUE)
 
-message("Script called with args: ", args)
 logtext(paste("Script called with args:", args))
 
 arg <- args[1]
 
 if (arg %in% stn_codes) {
-  runDat(arg, stn_names[[arg]], stn_files[[arg]])
+  name <- stn_names[[arg]]
+  file <- stn_files[[arg]]
+  logtext(paste0("Code: ", arg, ", Station/sheet name: ", name, ", File: ", file))
+  runDat(arg, name, file)
 } else {
-  message("'", arg, "' is not a valid station name.")
   logtext(paste0("ERROR: Invalid station name '", arg, "'"))
   Sys.sleep(3)
 }
