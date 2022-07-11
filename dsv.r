@@ -238,3 +238,6 @@ han_daily %>%
   mutate(across(where(is.numeric), ~ replace(.x, !is.finite(.x), NA)))
 
 ~replace(is.finite(.x), .x, NA)
+
+han_daily[han_daily == Inf]
+

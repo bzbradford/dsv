@@ -51,6 +51,7 @@ loadDat <- function(file, loc) {
       Date = as.Date(DateTime),
       Year = as.numeric(format(Date, "%Y")),
       .after = RECORD) %>%
+    filter(Date != Sys.Date()) %>%
     mutate(HiRH = case_when(AvgHrRH >= 95 ~ 1, T ~ 0)) %>%
     mutate(across(contains("_C_"), c_to_f, .names = "{.col}_F"), .before = "Rain_in_Tot") %>%
     rename_with(~ gsub("_C", "", .x), contains("_F")) %>%
@@ -134,16 +135,16 @@ pday <- function(tminF, tmaxF) {
 
 
 # convert hourly readings to daily summaries
-makeDaily <- function(df) {
+makeDaily <- function(hourly) {
 
   # average temps from high RH hours
-  HiRH <- df %>%
+  HiRH <- hourly %>%
     filter(HiRH == 1) %>%
     group_by(Date) %>%
     summarise(TavgC.HiRH = mean(Tair_Avg_C), .groups = "drop")
   
   # main daily summary
-  daily <- df %>%
+  daily <- hourly %>%
     group_by(Year, Location, Date, DayOfYear) %>%
     summarise(
       TminC = min(Tair_Min_C, na.rm = T),
@@ -173,6 +174,15 @@ makeDaily <- function(df) {
     ungroup() %>%
     mutate_if(is.numeric, round, 2) %>%
     mutate(RECORD = row_number() - 1, .before = everything())
+  
+  # Pyranometer data
+  if ("SlrMJm2_Tot" %in% names(hourly)) {
+    insol <- hourly %>%
+      group_by(Date) %>%
+      summarise(SlrMJm2_Tot = sum(SlrMJm2_Tot))
+    joined <- joined %>%
+      left_join(insol, by = "Date")
+  }
   
   return(joined)
 }
