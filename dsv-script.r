@@ -179,7 +179,7 @@ makeDaily <- function(hourly) {
   if ("SlrMJm2_Tot" %in% names(hourly)) {
     insol <- hourly %>%
       group_by(Date) %>%
-      summarise(SlrMJm2_Tot = sum(SlrMJm2_Tot))
+      summarise(SlrMJm2_Tot = round(sum(SlrMJm2_Tot), 2))
     joined <- joined %>%
       left_join(insol, by = "Date")
   }
